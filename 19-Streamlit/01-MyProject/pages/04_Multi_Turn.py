@@ -91,7 +91,7 @@ def create_chain(model_name="gpt-4.1-mini"):
     )
 
     # llm 생성
-    llm = ChatOpenAI(model_name="gpt-4.1-mini")
+    llm = ChatOpenAI(model="gpt-4.1-mini")
 
     # 일반 Chain 생성
     chain = prompt | llm | StrOutputParser()

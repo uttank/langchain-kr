@@ -24,7 +24,7 @@ def add_history(role, content):
 
 # 체인을 생성합니다.
 def create_chain(prompt, model):
-    chain = prompt | ChatOpenAI(model_name=model) | StrOutputParser()
+    chain = prompt | ChatOpenAI(model=model) | StrOutputParser()
     return chain
 
 
