@@ -29,6 +29,8 @@ class CareerState(TypedDict):
     career_final_goals_generated: Annotated[list[str], "LLM으로 생성된 최종 목표들"]  # 새로 추가
     career_final_goals_count: Annotated[int, "최종 목표 생성 횟수 (최대 5회)"]  # 새로 추가
     career_middle_goal: Annotated[list[str], "직업 탐구 중간 목표"]
+    career_middle_goals_generated: Annotated[list[list[str]], "LLM으로 생성된 중간 목표 목록들"]  # 새로 추가
+    career_middle_goals_count: Annotated[int, "중간 목표 생성 횟수 (최대 5회)"]  # 새로 추가
     career_final_report: Annotated[str, "직업 탐구 최종 보고서"]
     messages: Annotated[list, add_messages]
 
@@ -214,7 +216,7 @@ def shorten_issue_text(text: str) -> str:
     # 최후 수단: 30자로 자르기
     return text[:30]
 
-def generate_career_issues_with_llm(career: str, career_values: list, previous_issues: list = None) -> list:
+def generate_career_issues_with_llm(career: str, career_values: list, previous_issues: list | None = None) -> list:
     """LLM을 사용하여 직업 이슈 생성"""
     if previous_issues is None:
         previous_issues = []
@@ -261,6 +263,12 @@ def generate_career_issues_with_llm(career: str, career_values: list, previous_i
     try:
         response = llm.invoke(prompt)
         generated_text = response.content
+        
+        # content가 문자열인지 확인
+        if isinstance(generated_text, list):
+            generated_text = ' '.join(str(item) for item in generated_text)
+        elif not isinstance(generated_text, str):
+            generated_text = str(generated_text)
 
         # 응답에서 이슈 추출 및 15자 이내로 강제 조정
         issues = []
@@ -340,7 +348,7 @@ def web_select_career_issues(state: CareerState) -> CareerState:
                 "generate_new": False
             }
             st.session_state.career_state = new_state
-            state = new_state
+            state = new_state  # type: ignore
 
     # 현재 이슈 표시 및 다중 선택
     current_issues = state.get('career_issues', [])
@@ -408,7 +416,7 @@ def web_select_career_issues(state: CareerState) -> CareerState:
 
     return state
 
-def generate_career_projects_with_llm(career: str, career_values: list, career_issues: list, previous_projects: list = None) -> list:
+def generate_career_projects_with_llm(career: str, career_values: list, career_issues: list, previous_projects: list | None = None) -> list:
     """LLM을 사용하여 실행 가능한 프로젝트 생성"""
     if previous_projects is None:
         previous_projects = []
@@ -457,6 +465,12 @@ def generate_career_projects_with_llm(career: str, career_values: list, career_i
     try:
         response = llm.invoke(prompt)
         generated_text = response.content
+        
+        # content가 문자열인지 확인
+        if isinstance(generated_text, list):
+            generated_text = ' '.join(str(item) for item in generated_text)
+        elif not isinstance(generated_text, str):
+            generated_text = str(generated_text)
 
         # 응답에서 프로젝트 추출
         projects = []
@@ -539,7 +553,7 @@ def web_select_career_exploration(state: CareerState) -> CareerState:
                 "generate_new_projects": False
             }
             st.session_state.career_state = new_state
-            state = new_state
+            state = new_state  # type: ignore
 
     # 현재 프로젝트 표시 및 다중 선택
     current_projects = state.get('career_projects', [])
@@ -608,7 +622,7 @@ def web_select_career_exploration(state: CareerState) -> CareerState:
 
     return state
 
-def generate_career_final_goal_with_llm(career: str, career_values: list, career_issues: list, career_projects: list, previous_goals: list = None) -> str:
+def generate_career_final_goal_with_llm(career: str, career_values: list, career_issues: list, career_projects: list, previous_goals: list | None = None) -> str:
     """LLM을 사용하여 달성 가능한 최종 목표 생성"""
     if previous_goals is None:
         previous_goals = []
@@ -642,7 +656,15 @@ def generate_career_final_goal_with_llm(career: str, career_values: list, career
 
     try:
         response = llm.invoke(prompt)
-        generated_goal = response.content.strip()
+        generated_goal = response.content
+        
+        # content가 문자열인지 확인
+        if isinstance(generated_goal, list):
+            generated_goal = ' '.join(str(item) for item in generated_goal)
+        elif not isinstance(generated_goal, str):
+            generated_goal = str(generated_goal)
+        
+        generated_goal = generated_goal.strip()
 
         # 응답 정제 (불필요한 문구 제거)
         if generated_goal.startswith('-'):
@@ -704,7 +726,7 @@ def web_select_career_final_goal(state: CareerState) -> CareerState:
                 "generate_new_goal": False
             }
             st.session_state.career_state = new_state
-            state = new_state
+            state = new_state  # type: ignore
 
     # 현재 목표 표시
     current_goal = state.get('career_final_goal', '')
@@ -758,6 +780,250 @@ def web_select_career_final_goal(state: CareerState) -> CareerState:
 
     return state
 
+def shorten_middle_goal_text(text: str, max_length: int = 40) -> str:
+    """중간 목표 텍스트를 지정된 길이로 단축하는 함수"""
+    if len(text) <= max_length:
+        return text
+    
+    # 문장부호나 공백에서 잘라내기
+    for i in range(max_length - 3, max_length // 2, -1):
+        if text[i] in ['다', '요', '기', '함', '성', '력', '습', '득']:
+            return text[:i+1]
+    
+    # 찾을 수 없으면 강제로 자르고 생략표시 추가
+    return text[:max_length-2] + "기"
+
+def generate_career_middle_goals_with_llm(career: str, career_values: list, career_issues: list, career_projects: list, career_final_goal: str, previous_goals: list | None = None) -> list:
+    """LLM을 사용하여 중간 목표 3개 생성 (3가지 역량 기반)"""
+    if previous_goals is None:
+        previous_goals = []
+
+    # 이전에 생성된 모든 중간 목표들을 평탄화
+    all_previous_goals = []
+    for goals_list in previous_goals:
+        all_previous_goals.extend(goals_list)
+
+    prompt = f"""
+당신은 진로 상담 전문가입니다. 한국 고등학생이 실제로 달성할 수 있는 {career} 직업의 중간 목표 3개를 제시해주세요.
+
+**직업**: {career}
+**가치관**: {', '.join(career_values)}
+**해결하고자 하는 이슈**: {', '.join(career_issues)}
+**실행 예정인 프로젝트**: {', '.join(career_projects)}
+**최종 목표**: {career_final_goal}
+
+**중요한 요구사항**:
+최종 목표를 실현하기 위해 고등학생 수준에서 길러야 할 **핵심 역량 기반 중간 목표 3개**를 다음 형식으로 제시해주세요:
+
+[1] **학업역량**을 포함하는 내용으로 제시 (관련 지식 습득, 학습 능력 향상 등)
+[2] **진로역량**을 포함하는 내용으로 제시 (진로 탐색, 전문성 개발, 실무 경험 등)  
+[3] **공동체역량**을 포함하는 내용으로 제시 (협업, 소통, 사회적 책임 등)
+
+각 목표는 **반드시 40자 이내**로 간단명료하게 표현해주세요.
+실제로 고등학생이 3년 이내에 달성 가능한 현실적인 목표여야 합니다.
+
+**중복 방지**: 다음과 다른 새로운 목표들을 제시하세요:
+{', '.join(all_previous_goals) if all_previous_goals else '없음'}
+
+**응답 형식**:
+[1] (학업역량 관련 목표)
+[2] (진로역량 관련 목표)
+[3] (공동체역량 관련 목표)
+
+**좋은 예시** (소프트웨어 개발자):
+[1] 프로그래밍 언어 3개 이상 능숙하게 다루기
+[2] 실제 앱 개발 프로젝트 3개 이상 완성하기
+[3] 지역 IT 봉사활동 리더로 활동하기
+"""
+
+    try:
+        response = llm.invoke(prompt)
+        generated_text = response.content
+        
+        # content가 문자열인지 확인
+        if isinstance(generated_text, list):
+            generated_text = ' '.join(str(item) for item in generated_text)
+        elif not isinstance(generated_text, str):
+            generated_text = str(generated_text)
+        
+        # 응답에서 목표 3개 추출
+        goals = []
+        for line in generated_text.split('\n'):
+            line = line.strip()
+            if line.startswith('[1]') or line.startswith('[2]') or line.startswith('[3]'):
+                # [1], [2], [3] 제거하고 목표 추출
+                goal = line[3:].strip()
+                if goal and len(goal) > 3:  # 최소 길이 확인
+                    # 40자 이내로 강제 단축
+                    if len(goal) > 40:
+                        goal = shorten_middle_goal_text(goal)
+                    goals.append(goal)
+
+        # 3개가 아닌 경우 조정
+        if len(goals) < 3:
+            # 기본 목표로 보완
+            career_short = career[:4] if len(career) > 4 else career
+            default_goals = [
+                f"{career_short} 관련 전문 지식 습득하기",
+                f"{career_short} 실무 경험 3회 이상 쌓기", 
+                f"{career_short} 관련 봉사활동 참여하기"
+            ]
+            goals.extend(default_goals[len(goals):])
+        elif len(goals) > 3:
+            goals = goals[:3]
+
+        return goals
+
+    except Exception as e:
+        st.error(f"중간 목표 생성 중 오류가 발생했습니다: {e}")
+        # 실패 시 기본 목표 반환
+        career_short = career[:4] if len(career) > 4 else career
+        return [
+            f"{career_short} 관련 전문 지식 습득하기",
+            f"{career_short} 실무 경험 3회 이상 쌓기",
+            f"{career_short} 관련 봉사활동 참여하기"
+        ]
+
+def web_select_career_middle_goal(state: CareerState) -> CareerState:
+    """웹에서 중간 목표 설정 함수 - LLM 기반 동적 생성"""
+    st.header("6단계: 중간 목표 설정 (AI 기반)")
+    st.write(f"**선택한 직업:** {state.get('career', '')}")
+    st.write(f"**선택한 가치관:** {', '.join(state.get('career_values', []))}")
+    st.write(f"**선택한 이슈:** {', '.join(state.get('career_issues', []))}")
+    st.write(f"**선택한 프로젝트:** {', '.join(state.get('career_projects', []))}")
+    st.write(f"**최종 목표:** {state.get('career_final_goal', '')}")
+
+    career_middle_goals_count = state.get('career_middle_goals_count', 0)
+    career_middle_goals_generated = state.get('career_middle_goals_generated', [])
+
+    # 목표 생성 상태 표시
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.info(f"🤖 AI가 {state.get('career', '')} 직업의 3가지 핵심 역량 기반 중간 목표를 분석 중...")
+    with col2:
+        st.metric("생성 횟수", f"{career_middle_goals_count}/5")
+
+    # 첫 실행이거나 재실행인 경우 목표 생성
+    if career_middle_goals_count == 0 or state.get('generate_new_middle_goals', False):
+        if career_middle_goals_count < 5:
+            with st.spinner("AI가 3가지 핵심 역량 기반 중간 목표를 생성하고 있습니다..."):
+                new_goals = generate_career_middle_goals_with_llm(
+                    state.get('career', ''),
+                    state.get('career_values', []),
+                    state.get('career_issues', []),
+                    state.get('career_projects', []),
+                    state.get('career_final_goal', ''),
+                    career_middle_goals_generated
+                )
+
+            # 새 목표들을 상태에 저장
+            new_career_middle_goals_generated = career_middle_goals_generated + [new_goals]
+            new_career_middle_goals_count = career_middle_goals_count + 1
+
+            new_state = {
+                **state,
+                "career_middle_goal": new_goals,
+                "career_middle_goals_generated": new_career_middle_goals_generated,
+                "career_middle_goals_count": new_career_middle_goals_count,
+                "generate_new_middle_goals": False
+            }
+            st.session_state.career_state = new_state
+            state = new_state  # type: ignore
+
+    # 현재 목표들 표시
+    current_goals = state.get('career_middle_goal', [])
+    if current_goals:
+        st.subheader("🎯 AI가 제안한 3가지 핵심 역량 기반 중간 목표")
+        
+        # 목표들을 역량별로 구분하여 표시
+        competency_labels = ["📚 학업역량", "💼 진로역량", "🤝 공동체역량"]
+        for i, (goal, label) in enumerate(zip(current_goals, competency_labels)):
+            st.success(f"**{label}**: {goal}")
+        
+        # 목표 분석 정보 제공
+        total_length = sum(len(goal) for goal in current_goals)
+        st.info(f"💡 **목표 분석**: 총 {len(current_goals)}개 / 평균 {total_length//len(current_goals)}자 / 고등학생 달성 가능 수준")
+
+    # 버튼들
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("🔄 다른 목표 보기", key="regenerate_middle_goals"):
+            if career_middle_goals_count < 5:
+                new_state = {
+                    **state,
+                    "generate_new_middle_goals": True
+                }
+                st.session_state.career_state = new_state
+                st.rerun()
+            else:
+                st.warning("최대 생성 횟수(5회)에 도달했습니다.")
+
+    with col2:
+        if st.button("📋 이전 목표 보기", key="show_middle_goals_history"):
+            if career_middle_goals_generated:
+                st.subheader("📚 이전에 생성된 중간 목표들")
+                for i, goals in enumerate(career_middle_goals_generated, 1):
+                    with st.expander(f"{i}번째 생성 ({len(goals)}개)"):
+                        for j, goal in enumerate(goals, 1):
+                            st.write(f"{j}. {goal}")
+
+    with col3:
+        if st.button("다음 단계로", key="middle_goals_submit"):
+            if current_goals:
+                new_state = {
+                    **state,
+                    "step_state": "7",
+                    "is_react": False,
+                    "messages": state.get("messages", []) + [f"중간 목표를 설정했습니다: {', '.join(current_goals)} ({career_middle_goals_count}/5회 생성)"]
+                }
+                st.session_state.career_state = new_state
+                st.success(f"✅ 중간 목표 ({len(current_goals)}개): {', '.join(current_goals)}")
+                st.rerun()
+                return new_state
+            else:
+                st.error("목표가 생성되지 않았습니다. 다시 시도해주세요.")
+
+    return state
+
+def web_select_career_final_report(state: CareerState) -> CareerState:
+    """웹에서 직업 탐구 최종 보고서 작성 함수"""
+    st.header("7단계: 직업 탐구 최종 보고서")
+
+    st.subheader("📋 탐구 정보 요약")
+    st.write(f"**직업:** {state.get('career', '')}")
+    st.write(f"**가치관:** {', '.join(state.get('career_values', []))}")
+    st.write(f"**이슈:** {', '.join(state.get('career_issues', []))}")
+    st.write(f"**프로젝트:** {', '.join(state.get('career_projects', []))}")
+    st.write(f"**최종 목표:** {state.get('career_final_goal', '')}")
+    st.write(f"**중간 목표:** {', '.join(state.get('career_middle_goal', []))}")
+
+    st.subheader("📝 최종 보고서 작성")
+    report_input = st.text_area(
+        "위 정보를 바탕으로 직업 탐구 보고서를 작성해주세요:",
+        placeholder="AI와 함께한 탐구 과정에서 배운 점, 느낀 점, 앞으로의 계획 등을 포함하여 보고서를 작성해주세요.",
+        height=200,
+        key="career_final_report_input"
+    )
+
+    if st.button("보고서 완성", key="final_report_submit"):
+        if report_input.strip():
+            new_state = {
+                **state,
+                "step_state": "completed",
+                "career_final_report": report_input.strip(),
+                "is_react": False,
+                "messages": state.get("messages", []) + ["AI와 함께한 최종 보고서를 작성했습니다."]
+            }
+            st.session_state.career_state = new_state
+            st.success("✅ AI 진로 탐구가 완료되었습니다!")
+            st.balloons()
+            st.subheader("🎉 AI 진로 탐구 완료!")
+            return new_state  # type: ignore
+        else:
+            st.error("보고서를 작성해주세요!")
+    return state
+
 def main():
     """메인 Streamlit 웹 앱"""
     st.set_page_config(
@@ -787,11 +1053,14 @@ def main():
             "career_final_goals_generated": [],  # 추가
             "career_final_goals_count": 0,  # 추가
             "career_middle_goal": [],
+            "career_middle_goals_generated": [],  # 새로 추가
+            "career_middle_goals_count": 0,  # 새로 추가
             "career_final_report": "",
             "messages": ["AI 진로 탐구를 시작합니다."],
             "generate_new": False,
             "generate_new_projects": False,  # 추가
-            "generate_new_goal": False  # 추가
+            "generate_new_goal": False,  # 추가
+            "generate_new_middle_goals": False  # 새로 추가
         }
 
     # 현재 단계
@@ -827,6 +1096,9 @@ def main():
         elif current_step == "5":
             goals_count = st.session_state.career_state.get('career_final_goals_count', 0)
             st.info(f"🤖 AI 목표 생성: {goals_count}/5회")
+        elif current_step == "6":
+            middle_goals_count = st.session_state.career_state.get('career_middle_goals_count', 0)
+            st.info(f"🤖 AI 중간 목표 생성: {middle_goals_count}/5회")
 
         if st.button("🔄 처음부터 다시 시작"):
             st.session_state.clear()
@@ -838,11 +1110,13 @@ def main():
         "2": web_select_career_values,
         "3": web_select_career_issues,
         "4": web_select_career_exploration,
-        "5": web_select_career_final_goal  # 5단계 추가!
+        "5": web_select_career_final_goal,  # 5단계 추가!
+        "6": web_select_career_middle_goal,  # 6단계 추가!
+        "7": web_select_career_final_report   # 7단계 추가!
     }
 
     if current_step in step_functions:
-        step_functions[current_step](st.session_state.career_state)
+        step_functions[current_step](st.session_state.career_state)  # type: ignore
     elif current_step == "completed":
         st.success("🎉 모든 단계가 완료되었습니다!")
         st.write("AI와 함께한 진로 탐구를 성공적으로 마쳤습니다. 수고하셨습니다!")

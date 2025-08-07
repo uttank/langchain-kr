@@ -7,6 +7,6 @@ class CareerState(TypedDict):
     career_issues: Annotated[list[str], "직업에 대한 이슈, 다중 선택 가능"]
     career_exploration: Annotated[str, "직업 탐구주제"]
     career_final_goal: Annotated[str, "직업 탐구 최종 목표"]
-    career_middele_goal: Annotated[list[str], "직업 탐구 중간 목표"]
+    career_middle_goal: Annotated[list[str], "직업 탐구 중간 목표"]
     career_final_report: Annotated[str, "직업 탐구 최종 보고서"]
     messages: Annotated[list[str], add_messages]
