@@ -1,0 +1,12 @@
+상태정의 
+class CareerState(TypedDict):
+    # 메시지 정의(list[str] type 이며 add_messages 함수를 사용하여 메시지를 추가)
+    step_state: Annotated[str, "단계 상태"]
+    career: Annotated[str, "학생에 선택한 직업"]
+    career_values: Annotated[list[str], "직업에 대한 가치관, 다중 선택 가능"]
+    career_issues: Annotated[list[str], "직업에 대한 이슈, 다중 선택 가능"]
+    career_exploration: Annotated[str, "직업 탐구주제"]
+    career_final_goal: Annotated[str, "직업 탐구 최종 목표"]
+    career_middele_goal: Annotated[list[str], "직업 탐구 중간 목표"]
+    career_final_report: Annotated[str, "직업 탐구 최종 보고서"]
+    messages: Annotated[list[str], add_messages]
