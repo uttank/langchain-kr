@@ -91,6 +91,49 @@ def web_select_career_values(state: CareerState) -> CareerState:
             st.error("최소 하나의 가치관을 선택해주세요!")
     return state
 
+def shorten_issue_text(text: str) -> str:
+    """개선된 이슈 텍스트를 15자 이내로 단축"""
+    # 핵심 키워드 매핑
+    keywords_map = {
+        "디지털": "디지털 격차",
+        "정신": "정신 건강 관리", 
+        "스트레스": "스트레스 관리",
+        "협력": "지역 협력 부족",
+        "다양성": "교육 다양성",
+        "전문성": "전문성 향상",
+        "연수": "연수 기회 확대",
+        "불평등": "학습 불평등",
+        "커리큘럼": "커리큘럼 개발",
+        "인력": "인력 부족 문제",
+        "처우": "처우 개선 필요",
+        "기술": "기술 변화 대응",
+        "교육": "교육 체계 개선",
+        "환경": "근무 환경 개선",
+        "소통": "소통 개선 필요",
+        "감염": "감염 관리 강화"
+    }
+    
+    # 키워드 기반 단축
+    for keyword, short_form in keywords_map.items():
+        if keyword in text:
+            return short_form
+    
+    # 일반적인 단축 규칙
+    if "부족" in text:
+        if "기회" in text:
+            return "기회 부족 해결"
+        else:
+            return "부족 문제 해결"
+    
+    if "개선" in text:
+        return "개선 필요"
+    
+    if "문제" in text:
+        return "문제 해결 필요"
+    
+    # 최후 수단: 15자로 자르기
+    return text[:15]
+
 def generate_career_issues_with_llm(career: str, career_values: list, previous_issues: list = None) -> list:
     """LLM을 사용하여 직업 이슈 생성"""
     if previous_issues is None:
@@ -102,33 +145,44 @@ def generate_career_issues_with_llm(career: str, career_values: list, previous_i
         all_previous_issues.extend(issues_list)
 
     prompt = f"""
-당신은 진로 상담 전문가입니다. 다음 조건에 맞는 직업 분야의 최신 이슈나 해결 과제 5가지를 제시해주세요.
+당신은 진로 상담 전문가입니다. 한국 고등학생이 이해하기 쉬운 {career} 분야의 현재 이슈 5가지를 제시해주세요.
 
 **직업**: {career}
 **가치관**: {', '.join(career_values)}
 
-**요구사항**:
-1. 해당 직업 분야의 최신 이슈나 최근 문제가 되고 있는 해결 과제 5가지
-2. 선택된 가치관({', '.join(career_values)})을 고려한 이슈들
-3. 구체적이고 현실적인 문제들
-4. 각 이슈는 한 줄로 간결하게 표현
+**중요한 요구사항**:
+1. 한국 고등학생 수준의 쉬운 용어만 사용
+2. 각 이슈는 **반드시 15자 이내**로 작성
+3. 현재 한국에서 실제 논의되는 문제
+4. 간단명료하게 핵심만 표현
 
-**중복 방지**: 다음 이슈들과는 다른 새로운 이슈를 제시해주세요:
+**중복 방지**: 다음과 다른 새로운 이슈를 제시하세요:
 {', '.join(all_previous_issues) if all_previous_issues else '없음'}
 
-**응답 형식**: 
+**응답 형식 (반드시 15자 이내)**: 
 - 이슈1
 - 이슈2  
 - 이슈3
 - 이슈4
 - 이슈5
+
+**좋은 예시** (요양보호사):
+- 인력 부족 문제
+- 처우 개선 필요
+- 디지털 기술 도입
+- 감염 관리 강화
+- 정신 건강 지원
+
+**나쁜 예시** (너무 길음):
+- 고령화 사회에 따른 요양보호사 인력 부족 문제
+- 요양보호사의 근무 환경 및 처우 개선 필요성
 """
 
     try:
         response = llm.invoke(prompt)
         generated_text = response.content
 
-        # 응답에서 이슈 추출
+        # 응답에서 이슈 추출 및 15자 이내로 강제 조정
         issues = []
         for line in generated_text.split('\n'):
             line = line.strip()
@@ -136,11 +190,22 @@ def generate_career_issues_with_llm(career: str, career_values: list, previous_i
                 # '-' 또는 '•' 제거하고 이슈 추출
                 issue = line[1:].strip()
                 if issue and len(issue) > 5:  # 최소 길이 확인
+                    # 15자 이내로 강제 단축
+                    if len(issue) > 15:
+                        issue = shorten_issue_text(issue)
                     issues.append(issue)
 
         # 5개가 아닌 경우 조정
         if len(issues) < 5:
-            issues.extend([f"{career} 분야의 추가 과제 {i+1}" for i in range(len(issues), 5)])
+            career_short = career[:4] if len(career) > 4 else career  # 직업명 단축
+            default_issues = [
+                f"{career_short} 인력 부족",
+                f"{career_short} 처우 개선", 
+                f"{career_short} 기술 변화",
+                f"{career_short} 교육 부족",
+                f"{career_short} 미래 불안"
+            ]
+            issues.extend(default_issues[len(issues):])
         elif len(issues) > 5:
             issues = issues[:5]
 
@@ -197,12 +262,26 @@ def web_select_career_issues(state: CareerState) -> CareerState:
             st.session_state.career_state = new_state
             state = new_state
 
-    # 현재 이슈 표시
+    # 현재 이슈 표시 및 다중 선택
     current_issues = state.get('career_issues', [])
+    selected_issues = []
+    
     if current_issues:
         st.subheader("🔍 AI가 분석한 주요 이슈들")
-        for i, issue in enumerate(current_issues, 1):
-            st.write(f"**{i}.** {issue}")
+        
+        # 다중 선택 체크박스
+        selected_issues = st.multiselect(
+            "관심 있는 이슈를 모두 선택하세요 (여러 개 선택 가능):",
+            current_issues,
+            key="selected_issues",
+            help="탐구하고 싶은 이슈들을 선택해주세요. 여러 개를 선택할 수 있습니다."
+        )
+        
+        # 선택된 이슈 미리보기
+        if selected_issues:
+            st.success(f"✅ 선택된 이슈 ({len(selected_issues)}개):")
+            for i, issue in enumerate(selected_issues, 1):
+                st.write(f"**{i}.** {issue}")
 
     # 버튼들
     col1, col2, col3 = st.columns(3)
@@ -230,17 +309,20 @@ def web_select_career_issues(state: CareerState) -> CareerState:
 
     with col3:
         if st.button("다음 단계로", key="issues_submit"):
-            if current_issues:
+            if current_issues and selected_issues:  # 선택된 이슈가 있는지 확인
                 new_state = {
                     **state,
                     "step_state": "4",
+                    "career_issues": selected_issues,  # 선택된 이슈들로 업데이트
                     "is_react": False,
-                    "messages": state.get("messages", []) + [f"AI가 생성한 직업 이슈를 확인했습니다 ({career_issues_count}/5회 생성)"]
+                    "messages": state.get("messages", []) + [f"관심 이슈를 선택했습니다: {', '.join(selected_issues)} ({career_issues_count}/5회 생성)"]
                 }
                 st.session_state.career_state = new_state
-                st.success("✅ 직업 이슈 분석이 완료되었습니다!")
+                st.success(f"✅ {len(selected_issues)}개의 이슈를 선택했습니다!")
                 st.rerun()
                 return new_state
+            elif current_issues and not selected_issues:
+                st.error("최소 하나의 이슈를 선택해주세요!")
             else:
                 st.error("이슈가 생성되지 않았습니다. 다시 시도해주세요.")
 
