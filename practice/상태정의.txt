@@ -1,12 +1,20 @@
-상태정의 
 class CareerState(TypedDict):
-    # 메시지 정의(list[str] type 이며 add_messages 함수를 사용하여 메시지를 추가)
     step_state: Annotated[str, "단계 상태"]
-    career: Annotated[str, "학생에 선택한 직업"]
+    is_react: Annotated[bool, "React 여부, 기본값은 False, 재실행 요청시 True"]
+    career: Annotated[str, "학생이 선택한 직업"]
     career_values: Annotated[list[str], "직업에 대한 가치관, 다중 선택 가능"]
     career_issues: Annotated[list[str], "직업에 대한 이슈, 다중 선택 가능"]
+    career_issues_generated: Annotated[list[list[str]], "LLM으로 생성된 이슈 목록들"]
+    career_issues_count: Annotated[int, "이슈 생성 횟수 (최대 5회)"]
     career_exploration: Annotated[str, "직업 탐구주제"]
+    career_projects: Annotated[list[str], "실행 가능한 프로젝트 주제들, 다중 선택 가능"]  # 새로 추가
+    career_projects_generated: Annotated[list[list[str]], "LLM으로 생성된 프로젝트 목록들"]  # 새로 추가
+    career_projects_count: Annotated[int, "프로젝트 생성 횟수 (최대 5회)"]  # 새로 추가
     career_final_goal: Annotated[str, "직업 탐구 최종 목표"]
+    career_final_goals_generated: Annotated[list[str], "LLM으로 생성된 최종 목표들"]  # 새로 추가
+    career_final_goals_count: Annotated[int, "최종 목표 생성 횟수 (최대 5회)"]  # 새로 추가
     career_middle_goal: Annotated[list[str], "직업 탐구 중간 목표"]
+    career_middle_goals_generated: Annotated[list[list[str]], "LLM으로 생성된 중간 목표 목록들"]  # 새로 추가
+    career_middle_goals_count: Annotated[int, "중간 목표 생성 횟수 (최대 5회)"]  # 새로 추가
     career_final_report: Annotated[str, "직업 탐구 최종 보고서"]
-    messages: Annotated[list[str], add_messages]
+    messages: Annotated[list, add_messages]
