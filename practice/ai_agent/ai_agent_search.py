@@ -11,6 +11,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import uuid
 import json
+import asyncio
+from datetime import datetime
+from ddgs import DDGS
+import re
 
 # 환경변수 로드
 load_dotenv()
@@ -127,11 +131,132 @@ class SessionData(BaseModel):
 # 세션별 상태 저장
 user_sessions = {}
 
+def generate_search_keywords(career: str, career_values: list) -> list:
+    """직업과 가치관을 기반으로 검색 키워드 생성"""
+    base_keywords = [
+        f"{career} 현재 이슈",
+        f"{career} 문제점",
+        f"{career} 트렌드 2024",
+        f"{career} 미래 전망",
+        f"한국 {career} 현황"
+    ]
+    
+    # 가치관에 따른 키워드 추가
+    value_keywords = []
+    for value in career_values:
+        if "경제적 가치" in value:
+            value_keywords.extend([f"{career} 연봉 문제", f"{career} 취업 경쟁"])
+        elif "사회적 가치" in value:
+            value_keywords.extend([f"{career} 사회적 기여", f"{career} 사회 문제"])
+        elif "공동체적 가치" in value:
+            value_keywords.extend([f"{career} 협업 문제", f"{career} 소통"])
+        elif "능력 발휘" in value:
+            value_keywords.extend([f"{career} 전문성", f"{career} 역량 개발"])
+        elif "자율·창의성" in value:
+            value_keywords.extend([f"{career} 창의성", f"{career} 자율성"])
+        elif "미래 비전" in value:
+            value_keywords.extend([f"{career} 혁신", f"{career} 미래"])
+    
+    return base_keywords + value_keywords
+
+def search_web_for_issues(keywords: list, max_results: int = 3) -> list:
+    """웹검색을 통해 실시간 이슈 정보 수집"""
+    search_results = []
+    
+    try:
+        with DDGS() as ddgs:
+            for keyword in keywords[:5]:  # 상위 5개 키워드만 사용
+                try:
+                    results = list(ddgs.text(
+                        keyword + " site:kr OR 한국",
+                        max_results=max_results,
+                        region='kr-kr',
+                        safesearch='moderate'
+                    ))
+                    
+                    for result in results:
+                        search_results.append({
+                            'keyword': keyword,
+                            'title': result.get('title', ''),
+                            'body': result.get('body', ''),
+                            'href': result.get('href', '')
+                        })
+                        
+                except Exception as e:
+                    print(f"검색 키워드 '{keyword}' 오류: {e}")
+                    continue
+                    
+    except Exception as e:
+        print(f"웹검색 전체 오류: {e}")
+    
+    return search_results
+
+def extract_issues_from_search(search_results: list, career: str) -> list:
+    """검색 결과에서 고등학생에게 적합한 이슈 추출"""
+    if not search_results:
+        return []
+        
+    # 검색 결과를 텍스트로 정리
+    search_context = ""
+    for result in search_results[:10]:  # 상위 10개 결과만 사용
+        search_context += f"제목: {result['title']}\n내용: {result['body'][:200]}...\n\n"
+    
+    if not search_context.strip():
+        return []
+        
+    # LLM을 사용하여 검색 결과에서 이슈 추출
+    prompt = f"""
+다음은 '{career}' 관련 최신 웹검색 결과입니다. 이 정보를 바탕으로 한국 고등학생이 탐구할 만한 구체적인 이슈 3-5개를 추출해주세요.
+
+**검색 결과:**
+{search_context}
+
+**요구사항:**
+1. 고등학생 수준에서 이해하기 쉬운 이슈
+2. 현재 한국에서 실제로 논의되고 있는 실시간 문제들
+3. 각 이슈는 60-80자로 구체적이고 상세하게 표현
+4. 검색 결과에 기반한 현실적이고 최신의 내용
+5. 고등학생이 자료조사할 수 있는 수준
+
+**응답 형식**: 
+- 이슈1 (60-80자)
+- 이슈2 (60-80자)
+- 이슈3 (60-80자)
+"""
+
+    try:
+        response = llm.invoke(prompt)
+        generated_text = str(response.content)
+        
+        # 응답에서 이슈 추출
+        issues = []
+        for line in generated_text.split('\n'):
+            line = line.strip()
+            if line and (line.startswith('-') or line.startswith('•')):
+                issue = line[1:].strip()
+                if issue and len(issue) > 15:  # 최소 길이 확인
+                    if len(issue) > 80:
+                        issue = issue[:80] + "..."
+                    issues.append(issue)
+        
+        return issues
+        
+    except Exception as e:
+        print(f"이슈 추출 오류: {e}")
+        return []
+
 def generate_career_issues(career: str, career_values: list, previous_issues: Optional[list] = None) -> list:
-    """AI를 사용하여 직업 관련 이슈 생성 (중복 방지)"""
+    """웹검색과 AI를 활용하여 직업 관련 이슈 생성 (중복 방지)"""
     if previous_issues is None:
         previous_issues = []
     
+    # 1단계: 웹검색을 통한 실시간 이슈 수집
+    print(f"🔍 {career} 관련 최신 정보 검색 중...")
+    keywords = generate_search_keywords(career, career_values)
+    search_results = search_web_for_issues(keywords, max_results=2)
+    web_issues = extract_issues_from_search(search_results, career)
+    
+    # 2단계: 기존 AI 기반 이슈 생성 (웹검색 결과와 결합)
     # 가치관에 따른 맞춤형 컨텍스트
     value_context = ""
     for value in career_values:
@@ -148,12 +273,23 @@ def generate_career_issues(career: str, career_values: list, previous_issues: Op
         elif "미래 비전" in value:
             value_context += "미래 성장성과 혁신 관련 이슈, "
     
+    # 웹검색 결과 컨텍스트 추가
+    web_context = ""
+    if web_issues:
+        web_context = f"""
+**최신 웹검색 결과에서 발견된 실제 이슈들:**
+{chr(10).join([f'- {issue}' for issue in web_issues])}
+
+위 실시간 정보를 참고하되, 더 다양하고 창의적인 관점으로 접근하세요.
+"""
+    
     # 중복 방지를 위한 이전 이슈 목록 정리
+    all_previous_issues = previous_issues + web_issues
     previous_issues_text = ""
-    if previous_issues:
+    if all_previous_issues:
         previous_issues_text = f"""
 **중복 방지**: 다음과 의미나 단어가 중복되지 않는 완전히 새로운 이슈를 제시해주세요:
-{', '.join(previous_issues)}
+{', '.join(all_previous_issues)}
 
 위 이슈들과 유사한 주제나 단어는 절대 사용하지 마세요.
 """
@@ -164,15 +300,18 @@ def generate_career_issues(career: str, career_values: list, previous_issues: Op
 **직업**: {career}
 **선택한 가치관**: {', '.join(career_values)}
 
+{web_context}
+
 {previous_issues_text}
 
 **요구사항**:
 1. 한국 고등학생 수준에서 이해하기 쉬운 이슈
-2. 현재 한국에서 실제로 논의되고 있는 문제들
+2. 현재 한국에서 실제로 논의되고 있는 문제들 (2024-2025년 기준)
 3. 선택한 가치관({value_context.rstrip(', ')})을 반영한 이슈
 4. 각 이슈는 90자 이내로 구체적이고 상세하게 표현
 5. 고등학생이 탐구 주제로 다룰 수 있는 현실적인 내용
-6. 이전에 제시된 이슈와 완전히 다른 새로운 관점의 이슈
+6. 웹검색 결과와 다른 새로운 관점의 창의적 이슈
+7. 최신성과 실용성을 모두 고려한 균형 잡힌 이슈
 
 **응답 형식**: 
 1. 이슈1 (90자 이내, 구체적 설명 포함)
