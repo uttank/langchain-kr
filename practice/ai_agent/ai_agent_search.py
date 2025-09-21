@@ -421,7 +421,7 @@ async def set_values(request: Request, values_request: ValuesRequest):
 
 @app.post("/api/generate-issues")
 async def generate_issues(request: Request):
-    """이슈 생성"""
+    """이슈 생성 (다시생성 기능 포함)"""
     session_id = get_session_id(request)
     if session_id not in user_sessions:
         raise HTTPException(status_code=400, detail="세션이 유효하지 않습니다.")
@@ -433,30 +433,68 @@ async def generate_issues(request: Request):
     if not career:
         raise HTTPException(status_code=400, detail="직업을 먼저 설정해주세요.")
     
-    # 이전에 생성된 이슈들 가져오기
-    previous_issues = user_session.get('previous_issues', [])
+    # 생성 횟수 확인 및 초기화
+    generation_count = user_session.get('generation_count', 0)
+    if generation_count >= 3:
+        raise HTTPException(status_code=400, detail="최대 3번까지만 다시생성할 수 있습니다.")
+    
+    # 이전에 생성된 모든 이슈들 가져오기 (중복 방지용)
+    all_previous_issues = user_session.get('all_generated_issues', [])
     
     # 새로운 이슈 생성
-    issues = generate_career_issues(career, career_values, previous_issues)
+    new_issues = generate_career_issues(career, career_values, all_previous_issues)
     
-    # 생성된 이슈를 이전 이슈 목록에 추가
-    user_session['previous_issues'] = previous_issues + issues
+    # 현재 화면에 표시할 이슈들 (기존 + 새로운 이슈)
+    current_display_issues = user_session.get('current_display_issues', [])
+    updated_display_issues = current_display_issues + new_issues
     
-    return {"success": True, "issues": issues}
+    # 세션 업데이트
+    user_session['generation_count'] = generation_count + 1
+    user_session['all_generated_issues'] = all_previous_issues + new_issues
+    user_session['current_display_issues'] = updated_display_issues
+    
+    return {
+        "success": True, 
+        "issues": updated_display_issues,
+        "new_issues": new_issues,
+        "generation_count": generation_count + 1,
+        "max_generations": 3,
+        "can_regenerate": generation_count + 1 < 3
+    }
 
 @app.post("/api/issues")
 async def set_issues(request: Request, issues_request: IssuesRequest):
-    """이슈 설정"""
+    """이슈 설정 (최대 3개까지 선택 가능)"""
     issues = issues_request.issues
     
     if not issues:
         raise HTTPException(status_code=400, detail="최소 하나의 이슈를 선택해주세요.")
+    
+    if len(issues) > 3:
+        raise HTTPException(status_code=400, detail="최대 3개까지만 선택할 수 있습니다.")
     
     session_id = get_session_id(request)
     if session_id not in user_sessions:
         raise HTTPException(status_code=400, detail="세션이 유효하지 않습니다.")
     
     user_sessions[session_id]['career_issues'] = issues
+    
+    return {"success": True, "selected_issues": issues, "count": len(issues)}
+
+@app.post("/api/reset-issues")
+async def reset_issues(request: Request):
+    """이슈 생성 초기화 (새로운 이슈 생성 시작)"""
+    session_id = get_session_id(request)
+    if session_id not in user_sessions:
+        raise HTTPException(status_code=400, detail="세션이 유효하지 않습니다.")
+    
+    # 이슈 관련 데이터 초기화
+    user_sessions[session_id]['generation_count'] = 0
+    user_sessions[session_id]['all_generated_issues'] = []
+    user_sessions[session_id]['current_display_issues'] = []
+    user_sessions[session_id]['career_issues'] = []
+    
+    return {"success": True, "message": "이슈 생성을 초기화했습니다."}
     
     # 에이전트 생성 및 초기 메시지 설정
     agent = create_career_counselor_agent()

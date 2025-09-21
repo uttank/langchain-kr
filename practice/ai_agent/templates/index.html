@@ -203,6 +203,18 @@
             box-shadow: none !important;
         }
 
+        .generation-info {
+            margin: 15px 0;
+        }
+
+        .info-box {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
         .issues-container {
             margin-top: 20px;
         }
@@ -214,6 +226,7 @@
             margin-bottom: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
+            position: relative;
         }
 
         .issue-item:hover {
@@ -224,6 +237,26 @@
         .issue-item.selected {
             border-color: #667eea;
             background: #f0f4ff;
+        }
+
+        .issue-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .issue-new {
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
         .chat-container {
@@ -478,10 +511,17 @@
                     <div class="step-number">3</div>
                     <div class="step-title">관심 있는 이슈 선택</div>
                 </div>
-                <p>선택한 직업과 가치관을 바탕으로 AI가 생성한 이슈들입니다. 관심 있는 이슈를 선택해주세요.</p>
+                <p>선택한 직업과 가치관을 바탕으로 AI가 생성한 이슈들입니다. <strong>최대 3개까지</strong> 관심 있는 이슈를 선택해주세요.</p>
+                
+                <div class="generation-info" id="generationInfo" style="display: none;">
+                    <div class="info-box">
+                        <span id="generationStatus">이슈 생성 중...</span>
+                        <span id="selectionCount" style="float: right;">선택: 0/3</span>
+                    </div>
+                </div>
                 
                 <div class="loading" id="issuesLoading">
-                    🤖 AI가 맞춤형 이슈를 생성하고 있습니다...
+                    🤖 AI가 웹검색과 함께 맞춤형 이슈를 생성하고 있습니다...
                 </div>
                 
                 <div class="issues-container" id="issuesContainer">
@@ -490,8 +530,10 @@
                 
                 <br>
                 <button class="btn btn-secondary" onclick="goToStep(2)">이전 단계로</button>
-                <button class="btn btn-secondary" onclick="generateNewIssues()">🔄 새로운 이슈 생성</button>
-                <button class="btn btn-primary" onclick="setIssues()">상담 시작하기</button>
+                <button class="btn btn-secondary" id="regenerateBtn" onclick="regenerateIssues()" disabled>
+                    🔄 다시생성하기 (<span id="regenCount">0</span>/3)
+                </button>
+                <button class="btn btn-primary" id="startCounselingBtn" onclick="setIssues()" disabled>상담 시작하기</button>
             </div>
 
             <!-- 요약 정보 -->
@@ -688,12 +730,24 @@
         }
 
         function generateIssues() {
-            document.getElementById('issuesLoading').style.display = 'block';
-            document.getElementById('issuesContainer').innerHTML = '';
-
-            fetch('/api/generate-issues', {
+            // 이슈 생성 초기화
+            selectedIssues = [];
+            
+            // 초기화 API 호출
+            fetch('/api/reset-issues', {
                 method: 'POST',
                 headers: getHeaders()
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 초기화 후 첫 번째 이슈 생성
+                document.getElementById('issuesLoading').style.display = 'block';
+                document.getElementById('issuesContainer').innerHTML = '';
+                
+                return fetch('/api/generate-issues', {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
             })
             .then(response => response.json())
             .then(data => {
@@ -701,6 +755,8 @@
                 if (data.success) {
                     currentIssues = data.issues;
                     displayIssues(data.issues);
+                    generationCount = data.generation_count || 1;
+                    updateGenerationStatus(data);
                 } else {
                     showError(data.detail || data.error);
                 }
@@ -712,42 +768,161 @@
             });
         }
 
-        function generateNewIssues() {
-            generateIssues();
-        }
+        let maxSelections = 3;
+        let generationCount = 0;
+        let maxGenerations = 3;
 
-        function displayIssues(issues) {
-            const container = document.getElementById('issuesContainer');
-            container.innerHTML = '';
-
-            issues.forEach((issue, index) => {
-                const issueDiv = document.createElement('div');
-                issueDiv.className = 'issue-item';
-                issueDiv.innerHTML = `
-                    <input type="checkbox" id="issue${index}" value="${issue}" style="margin-right: 10px;">
-                    <label for="issue${index}">${issue}</label>
-                `;
-                
-                issueDiv.addEventListener('click', function(e) {
-                    const checkbox = this.querySelector('input[type="checkbox"]');
-                    if (e.target.type !== 'checkbox') {
-                        checkbox.checked = !checkbox.checked;
-                    }
-                    this.classList.toggle('selected', checkbox.checked);
-                });
-
-                container.appendChild(issueDiv);
+        function regenerateIssues() {
+            if (generationCount >= maxGenerations) {
+                showError('최대 3번까지만 다시생성할 수 있습니다.');
+                return;
+            }
+            
+            document.getElementById('issuesLoading').style.display = 'block';
+            document.getElementById('regenerateBtn').disabled = true;
+            
+            fetch('/api/generate-issues', {
+                method: 'POST',
+                headers: getHeaders()
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('issuesLoading').style.display = 'none';
+                if (data.success) {
+                    displayIssues(data.issues, data.new_issues);
+                    generationCount = data.generation_count;
+                    maxGenerations = data.max_generations;
+                    updateGenerationStatus(data);
+                } else {
+                    showError('이슈 생성에 실패했습니다.');
+                }
+            })
+            .catch(error => {
+                document.getElementById('issuesLoading').style.display = 'none';
+                document.getElementById('regenerateBtn').disabled = false;
+                console.error('Error:', error);
+                showError('이슈 생성 중 오류가 발생했습니다: ' + error.message);
             });
         }
 
+        function displayIssues(allIssues, newIssues = []) {
+            const container = document.getElementById('issuesContainer');
+            
+            // 새로운 이슈만 추가 (기존 이슈는 유지)
+            if (newIssues && newIssues.length > 0) {
+                newIssues.forEach((issue, index) => {
+                    const issueDiv = createIssueElement(issue, allIssues.indexOf(issue), true);
+                    container.appendChild(issueDiv);
+                });
+            } else {
+                // 처음 생성하는 경우 모든 이슈 표시
+                container.innerHTML = '';
+                allIssues.forEach((issue, index) => {
+                    const issueDiv = createIssueElement(issue, index, false);
+                    container.appendChild(issueDiv);
+                });
+            }
+            
+            updateSelectionStatus();
+        }
+
+        function createIssueElement(issue, index, isNew = false) {
+            const issueDiv = document.createElement('div');
+            issueDiv.className = 'issue-item' + (isNew ? ' issue-new' : '');
+            issueDiv.innerHTML = `
+                <input type="checkbox" id="issue${index}" value="${issue}" style="margin-right: 10px;">
+                <label for="issue${index}">${issue}</label>
+            `;
+            
+            const checkbox = issueDiv.querySelector('input[type="checkbox"]');
+            
+            issueDiv.addEventListener('click', function(e) {
+                if (e.target.type !== 'checkbox') {
+                    // 체크 해제하는 경우는 항상 허용
+                    if (checkbox.checked) {
+                        checkbox.checked = false;
+                    } else {
+                        // 체크하려는 경우 개수 확인
+                        if (selectedIssues.length >= maxSelections) {
+                            showError(`최대 ${maxSelections}개까지만 선택할 수 있습니다.`);
+                            return;
+                        }
+                        checkbox.checked = true;
+                    }
+                }
+                
+                updateSelection(checkbox, this);
+            });
+            
+            checkbox.addEventListener('change', function() {
+                // 체크하려는 경우 개수 확인
+                if (this.checked && selectedIssues.length >= maxSelections) {
+                    this.checked = false;
+                    showError(`최대 ${maxSelections}개까지만 선택할 수 있습니다.`);
+                    return;
+                }
+                updateSelection(this, issueDiv);
+            });
+            
+            return issueDiv;
+        }
+
+        function updateSelection(checkbox, issueDiv) {
+            if (checkbox.checked) {
+                // 이미 선택된 이슈가 아니고, 최대 선택 개수를 초과하지 않는 경우만 추가
+                if (!selectedIssues.includes(checkbox.value) && selectedIssues.length < maxSelections) {
+                    selectedIssues.push(checkbox.value);
+                    issueDiv.classList.add('selected');
+                } else if (selectedIssues.length >= maxSelections) {
+                    // 최대 개수 초과시 체크 해제
+                    checkbox.checked = false;
+                    showError(`최대 ${maxSelections}개까지만 선택할 수 있습니다.`);
+                    return;
+                }
+            } else {
+                // 체크 해제시 배열에서 제거
+                selectedIssues = selectedIssues.filter(issue => issue !== checkbox.value);
+                issueDiv.classList.remove('selected');
+            }
+            
+            updateSelectionStatus();
+        }
+
+        function updateSelectionStatus() {
+            document.getElementById('selectionCount').textContent = `선택: ${selectedIssues.length}/${maxSelections}`;
+            document.getElementById('startCounselingBtn').disabled = selectedIssues.length === 0;
+        }
+
+        function updateGenerationStatus(data) {
+            const statusElement = document.getElementById('generationStatus');
+            const regenBtn = document.getElementById('regenerateBtn');
+            const regenCount = document.getElementById('regenCount');
+            
+            regenCount.textContent = data.generation_count;
+            
+            if (data.can_regenerate) {
+                statusElement.textContent = `이슈 생성 완료 (${data.generation_count}/${data.max_generations})`;
+                regenBtn.disabled = false;
+            } else {
+                statusElement.textContent = `이슈 생성 완료 (최대 생성 횟수 도달)`;
+                regenBtn.disabled = true;
+            }
+            
+            document.getElementById('generationInfo').style.display = 'block';
+        }
+
         function setIssues() {
-            const checkboxes = document.querySelectorAll('#issuesContainer input[type="checkbox"]:checked');
-            if (checkboxes.length === 0) {
+            if (selectedIssues.length === 0) {
                 showError('최소 하나의 이슈를 선택해주세요.');
                 return;
             }
 
-            const issues = Array.from(checkboxes).map(cb => cb.value);
+            if (selectedIssues.length > maxSelections) {
+                showError(`최대 ${maxSelections}개까지만 선택할 수 있습니다.`);
+                return;
+            }
+
+            const issues = selectedIssues;
 
             fetch('/api/issues', {
                 method: 'POST',
