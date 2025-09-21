@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고등학생 진로 상담 AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .step {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 2px solid #e0e6ed;
+            border-radius: 15px;
+            background: #f8f9fb;
+            transition: all 0.3s ease;
+            display: none; /* 기본적으로 숨김 */
+        }
+
+        .step.active {
+            display: block; /* 활성 단계만 표시 */
+            border-color: #667eea;
+            background: #f0f4ff;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.1);
+        }
+
+        .step.completed {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+
+        .step.completed .step-number {
+            background: #28a745;
+        }
+
+        .step-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e6ed;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #e0e6ed;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-item:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .checkbox-item.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .checkbox-item input {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            margin: 0;
+            flex: 1;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-right: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .issues-container {
+            margin-top: 20px;
+        }
+
+        .issue-item {
+            padding: 15px;
+            border: 2px solid #e0e6ed;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .issue-item:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .issue-item.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .chat-container {
+            display: none;
+            margin-top: 30px;
+            border: 2px solid #e0e6ed;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fb;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.assistant {
+            background: white;
+            border: 1px solid #e0e6ed;
+            border-bottom-left-radius: 5px;
+        }
+
+        .chat-input-container {
+            display: flex;
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e6ed;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e6ed;
+            border-radius: 25px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 15px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .send-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e6ed;
+            border-radius: 3px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .summary {
+            background: #f0f4ff;
+            border: 2px solid #667eea;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .summary h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .summary-item {
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e6ed;
+        }
+
+        .summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .summary-item strong {
+            color: #333;
+            display: inline-block;
+            width: 80px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .checkbox-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-messages {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 고등학생 진로 상담 AI</h1>
+            <p>당신의 꿈과 진로를 함께 탐색해보세요</p>
+        </div>
+        
+        <div class="content">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <!-- 단계 안내 -->
+            <div style="text-align: center; margin-bottom: 30px; color: #667eea; font-weight: 600;" id="stepGuide">
+                1단계: 희망 직업 선택
+            </div>
+
+            <!-- 1단계: 직업 선택 -->
+            <div class="step active" id="step1">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <div class="step-title">희망 직업을 알려주세요</div>
+                </div>
+                <div class="form-group">
+                    <label for="careerInput">관심있는 직업이나 꿈꾸는 직업이 있나요?</label>
+                    <input type="text" id="careerInput" placeholder="예: 의사, 교사, 개발자, 디자이너 등">
+                </div>
+                <button class="btn btn-primary" onclick="setCareer()">다음 단계로</button>
+            </div>
+
+            <!-- 2단계: 가치관 선택 -->
+            <div class="step" id="step2">
+                <div class="step-header">
+                    <div class="step-number">2</div>
+                    <div class="step-title">직업 선택 가치관</div>
+                </div>
+                <p>직업을 선택할 때 중요하게 생각하는 가치관을 선택해주세요. (여러 개 선택 가능)</p>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value1" value="경제적 가치 - 높은 수입, 안정적인 직업">
+                        <label for="value1">💰 경제적 가치<br><small>높은 수입, 안정적인 직업</small></label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value2" value="사회적 가치 - 사회에 긍정적인 영향, 봉사">
+                        <label for="value2">🌍 사회적 가치<br><small>사회에 긍정적인 영향, 봉사</small></label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value3" value="공동체적 가치 - 사람들과 협력, 소통">
+                        <label for="value3">🤝 공동체적 가치<br><small>사람들과 협력, 소통</small></label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value4" value="능력 발휘 - 나의 재능과 역량을 최대한 발휘">
+                        <label for="value4">💪 능력 발휘<br><small>나의 재능과 역량을 최대한 발휘</small></label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value5" value="자율·창의성 - 독립적으로 일하고 새로운 아이디어 창출">
+                        <label for="value5">💡 자율·창의성<br><small>독립적으로 일하고 새로운 아이디어 창출</small></label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="value6" value="미래 비전 - 성장 가능성, 혁신적인 분야">
+                        <label for="value6">🚀 미래 비전<br><small>성장 가능성, 혁신적인 분야</small></label>
+                    </div>
+                </div>
+                <br>
+                <button class="btn btn-secondary" onclick="goToStep(1)">이전 단계로</button>
+                <button class="btn btn-primary" onclick="setValues()">다음 단계로</button>
+            </div>
+
+            <!-- 3단계: 이슈 선택 -->
+            <div class="step" id="step3">
+                <div class="step-header">
+                    <div class="step-number">3</div>
+                    <div class="step-title">관심 있는 이슈 선택</div>
+                </div>
+                <p>선택한 직업과 가치관을 바탕으로 AI가 생성한 이슈들입니다. 관심 있는 이슈를 선택해주세요.</p>
+                
+                <div class="loading" id="issuesLoading">
+                    🤖 AI가 맞춤형 이슈를 생성하고 있습니다...
+                </div>
+                
+                <div class="issues-container" id="issuesContainer">
+                    <!-- 이슈들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                
+                <br>
+                <button class="btn btn-secondary" onclick="goToStep(2)">이전 단계로</button>
+                <button class="btn btn-secondary" onclick="generateNewIssues()">🔄 새로운 이슈 생성</button>
+                <button class="btn btn-primary" onclick="setIssues()">상담 시작하기</button>
+            </div>
+
+            <!-- 요약 정보 -->
+            <div class="summary" id="summary" style="display: none;">
+                <h3>📋 선택 정보 요약</h3>
+                <div class="summary-item">
+                    <strong>직업:</strong> <span id="summaryCareer">-</span>
+                </div>
+                <div class="summary-item">
+                    <strong>가치관:</strong> <span id="summaryValues">-</span>
+                </div>
+                <div class="summary-item">
+                    <strong>관심 이슈:</strong> <span id="summaryIssues">-</span>
+                </div>
+            </div>
+
+            <!-- 채팅 인터페이스 -->
+            <div class="chat-container" id="chatContainer">
+                <div class="chat-header">
+                    <h3>💬 진로 상담 채팅</h3>
+                    <p>자유롭게 질문하거나 고민을 말씀해주세요!</p>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <!-- 채팅 메시지들이 여기에 추가됩니다 -->
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="메시지를 입력하세요..." onkeypress="handleChatKeyPress(event)">
+                    <button class="send-btn" onclick="sendMessage()">전송</button>
+                </div>
+                <div class="loading" id="chatLoading">
+                    상담사가 답변을 준비하고 있습니다...
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-secondary" onclick="resetSession()" id="resetBtn" style="display: none;">🔄 새로 시작하기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let selectedCareer = '';
+        let selectedValues = [];
+        let selectedIssues = [];
+        let currentIssues = [];
+        let sessionId = generateSessionId();
+
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
+
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'session-id': sessionId
+            };
+        }
+
+        // 체크박스 선택 이벤트
+        document.querySelectorAll('.checkbox-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                if (e.target.type !== 'checkbox') {
+                    const checkbox = this.querySelector('input[type="checkbox"]');
+                    checkbox.checked = !checkbox.checked;
+                }
+                this.classList.toggle('selected', this.querySelector('input[type="checkbox"]').checked);
+            });
+        });
+
+        function updateProgress() {
+            let progress = 0;
+            let guideText = "";
+            
+            if (currentStep === 1) {
+                progress = 0;
+                guideText = "1단계: 희망 직업 선택";
+            } else if (currentStep === 2) {
+                progress = 33.33;
+                guideText = "2단계: 직업 가치관 선택";
+            } else if (currentStep === 3) {
+                progress = 66.66;
+                guideText = "3단계: 관심 이슈 선택";
+            } else if (currentStep === 4) {
+                progress = 100;
+                guideText = "상담 진행 중";
+            }
+            
+            document.getElementById('progressFill').style.width = progress + '%';
+            const stepGuide = document.getElementById('stepGuide');
+            if (stepGuide) {
+                stepGuide.textContent = guideText;
+                if (currentStep === 4) {
+                    stepGuide.style.display = 'none';
+                } else {
+                    stepGuide.style.display = 'block';
+                }
+            }
+        }
+
+        function goToStep(step) {
+            // 모든 단계 숨기기
+            for (let i = 1; i <= 3; i++) {
+                const stepElement = document.getElementById(`step${i}`);
+                if (stepElement) {
+                    stepElement.classList.remove('active');
+                    stepElement.style.display = 'none';
+                }
+            }
+            
+            // 새 스텝 활성화
+            currentStep = step;
+            const newStepElement = document.getElementById(`step${currentStep}`);
+            if (newStepElement) {
+                newStepElement.classList.add('active');
+                newStepElement.style.display = 'block';
+            }
+            
+            updateProgress();
+        }
+
+        function setCareer() {
+            const career = document.getElementById('careerInput').value.trim();
+            if (!career) {
+                showError('직업을 입력해주세요.');
+                return;
+            }
+
+            fetch('/api/career', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ career: career })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    selectedCareer = career;
+                    if (data.session_id) {
+                        sessionId = data.session_id;
+                    }
+                    // 1단계 완료 표시
+                    const step1 = document.getElementById('step1');
+                    step1.classList.add('completed');
+                    step1.classList.remove('active');
+                    
+                    // 2단계로 이동
+                    goToStep(2);
+                    showSuccess(`"${career}" 직업이 선택되었습니다!`);
+                } else {
+                    showError(data.detail || data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        function setValues() {
+            const checkboxes = document.querySelectorAll('#step2 input[type="checkbox"]:checked');
+            if (checkboxes.length === 0) {
+                showError('최소 하나의 가치관을 선택해주세요.');
+                return;
+            }
+
+            const values = Array.from(checkboxes).map(cb => cb.value);
+
+            fetch('/api/values', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ values: values })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    selectedValues = values;
+                    // 2단계 완료 표시
+                    const step2 = document.getElementById('step2');
+                    step2.classList.add('completed');
+                    step2.classList.remove('active');
+                    
+                    // 3단계로 이동
+                    goToStep(3);
+                    generateIssues();
+                    showSuccess(`${values.length}개의 가치관이 선택되었습니다!`);
+                } else {
+                    showError(data.detail || data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        function generateIssues() {
+            document.getElementById('issuesLoading').style.display = 'block';
+            document.getElementById('issuesContainer').innerHTML = '';
+
+            fetch('/api/generate-issues', {
+                method: 'POST',
+                headers: getHeaders()
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('issuesLoading').style.display = 'none';
+                if (data.success) {
+                    currentIssues = data.issues;
+                    displayIssues(data.issues);
+                } else {
+                    showError(data.detail || data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('issuesLoading').style.display = 'none';
+                console.error('Error:', error);
+                showError('이슈 생성 중 오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        function generateNewIssues() {
+            generateIssues();
+        }
+
+        function displayIssues(issues) {
+            const container = document.getElementById('issuesContainer');
+            container.innerHTML = '';
+
+            issues.forEach((issue, index) => {
+                const issueDiv = document.createElement('div');
+                issueDiv.className = 'issue-item';
+                issueDiv.innerHTML = `
+                    <input type="checkbox" id="issue${index}" value="${issue}" style="margin-right: 10px;">
+                    <label for="issue${index}">${issue}</label>
+                `;
+                
+                issueDiv.addEventListener('click', function(e) {
+                    const checkbox = this.querySelector('input[type="checkbox"]');
+                    if (e.target.type !== 'checkbox') {
+                        checkbox.checked = !checkbox.checked;
+                    }
+                    this.classList.toggle('selected', checkbox.checked);
+                });
+
+                container.appendChild(issueDiv);
+            });
+        }
+
+        function setIssues() {
+            const checkboxes = document.querySelectorAll('#issuesContainer input[type="checkbox"]:checked');
+            if (checkboxes.length === 0) {
+                showError('최소 하나의 이슈를 선택해주세요.');
+                return;
+            }
+
+            const issues = Array.from(checkboxes).map(cb => cb.value);
+
+            fetch('/api/issues', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ issues: issues })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    selectedIssues = issues;
+                    // 3단계 완료 표시
+                    const step3 = document.getElementById('step3');
+                    step3.classList.add('completed');
+                    step3.classList.remove('active');
+                    
+                    // 모든 단계 숨기기
+                    document.getElementById('step1').style.display = 'none';
+                    document.getElementById('step2').style.display = 'none';
+                    document.getElementById('step3').style.display = 'none';
+                    
+                    // 요약 정보 표시
+                    updateSummary();
+                    document.getElementById('summary').style.display = 'block';
+                    
+                    // 채팅 인터페이스 표시
+                    document.getElementById('chatContainer').style.display = 'block';
+                    document.getElementById('resetBtn').style.display = 'inline-block';
+                    
+                    // 초기 메시지 표시
+                    if (data.initial_message) {
+                        addMessage('assistant', data.initial_message);
+                    }
+                    
+                    // 진행률 100%로 설정
+                    currentStep = 4;
+                    updateProgress();
+                    showSuccess('상담이 시작되었습니다!');
+                } else {
+                    showError(data.detail || data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('상담 초기화 중 오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        function updateSummary() {
+            document.getElementById('summaryCareer').textContent = selectedCareer;
+            document.getElementById('summaryValues').textContent = selectedValues.map(v => v.split(' - ')[0].split('. ')[1] || v).join(', ');
+            document.getElementById('summaryIssues').textContent = selectedIssues.join(', ');
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // 사용자 메시지 표시
+            addMessage('user', message);
+            input.value = '';
+
+            // 로딩 표시
+            document.getElementById('chatLoading').style.display = 'block';
+
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('chatLoading').style.display = 'none';
+                if (data.success) {
+                    addMessage('assistant', data.response);
+                } else {
+                    showError(data.detail || data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('chatLoading').style.display = 'none';
+                console.error('Error:', error);
+                showError('메시지 전송 중 오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        function addMessage(sender, content) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            messageDiv.textContent = content;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function resetSession() {
+            if (confirm('새로 시작하시겠습니까? 현재 상담 내용이 모두 삭제됩니다.')) {
+                fetch('/api/reset', {
+                    method: 'POST',
+                    headers: getHeaders()
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.session_id) {
+                            sessionId = data.session_id;
+                        }
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('세션 초기화 중 오류가 발생했습니다: ' + error.message);
+                });
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.content').insertBefore(errorDiv, document.querySelector('.content').firstChild);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            document.querySelector('.content').insertBefore(successDiv, document.querySelector('.content').firstChild);
+            setTimeout(() => successDiv.remove(), 3000);
+        }
+
+        // 초기 진행률 설정
+        updateProgress();
+    </script>
+</body>
+</html>
